@@ -1,34 +1,25 @@
 
 const fs = require('fs');
-const fsp = require('fs').promises;
 
 const fanoFunctions = require('./shannon-fano.js');
 const LZSSFunctions = require('./LZSS.js');
 
 const arg = process.argv.slice(2);
 
-async function loadFiles() {
-    try {
-        const data1 = await fsp.readFile('codes.json', 'utf8'); // для файла JSON
-        const data2 = await fsp.readFile('compress.txt', 'utf8'); // для текстового файла
-        return { data1, data2 };
-    } catch (err) {
-        throw err;
-    }
+function compressFunction(fileData) {
+
+
+    const inner = fanoFunctions.compressShannonFano(fileData);
+    const outer = LZSSFunctions.compressLZSS(inner.compressedData);
+
+    return { text: outer, codes: inner.codes };
 }
 
-async function decompressFunction() {
-    try {
-      const { data1, data2 } = await loadFiles();
-      
-      let lzssDecompressData = LZSSFunctions.decompressLZSS(data2);
-      let fanoDecompressData = fanoFunctions.decompressShannonFano(lzssDecompressData, data1);
-
-    } catch (err) {
-      console.error('Произошла ошибка:', err);
-    }
-  }
-  
+function decompressFunction(fileData, codes) {
+    const outer = LZSSFunctions.decompressLZSS(fileData);
+    const inner = fanoFunctions.decompressShannonFano(outer, codes);
+    return inner;
+}
 
 
 if (arg == '1') {
@@ -38,22 +29,18 @@ if (arg == '1') {
             return;
         }
 
-        let fanoData = fanoFunctions.compressShannonFano(data);
-        let resData = LZSSFunctions.compressLZSS(fanoData.compressedData);
+        const cd = compressFunction(data);
 
-        const dec =  LZSSFunctions.decompressLZSS(resData);
-        console.log(fanoData.compressedData.slice(0, 150));
-        console.log()
-        console.log(dec.slice(0,150));
 
-        fs.writeFile('compress.txt', resData, 'utf8', (err) => {
+
+        fs.writeFile('compress.txt', cd.text, 'utf8', (err) => {
             if (err) {
                 console.error(err);
                 return;
             }
         });
 
-        fs.writeFile('codes.json', JSON.stringify(fanoData.codes), 'utf8', (err) => {
+        fs.writeFile('codes.json', JSON.stringify(cd.codes), 'utf8', (err) => {
             if (err) {
                 console.error(err);
                 return;
@@ -62,7 +49,32 @@ if (arg == '1') {
     });
 }
 else {
+    fs.readFile('compress.txt', 'utf8', (err, data1) => {
+        if (err) {
+            console.error(err);
+            return;
+        }
 
-    decompressFunction();
+        // Read the second input file in JSON format
+        fs.readFile('codes.json', 'utf8', (err, data2) => {
+            if (err) {
+                console.error(err);
+                return;
+            }
+
+            // Parse the JSON data
+            const codes = JSON.parse(data2);
+
+            const res = decompressFunction(data1, codes);
+            console.log(res);
+
+            fs.writeFile('resultMumu.txt', res, 'utf8', (err) => {
+                if (err) {
+                    console.error(err);
+                    return;
+                }
+            });
+        });
+    });
 }
 
